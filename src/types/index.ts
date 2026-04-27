@@ -1,16 +1,24 @@
-export type ComponentType = 'material' | 'labor' | 'assembly' | 'service' | 'overhead'
+export type ComponentTag = 'material' | 'labor' | 'assembly' | 'service' | 'overhead'
 
-export type PriceMode = 'static' | 'sum' | 'product'
+export type ComponentBehavior = 'leaf' | 'group' | 'choice'
+
+export interface Configuration {
+  id: string
+  name: string
+  choices: Record<string, string>  // { choiceNodeId: activeChildId }
+  createdAt: number
+}
 
 export interface BreakdownComponent {
   id: string
   name: string
-  type: ComponentType
-  priceMode: PriceMode
+  tag: ComponentTag
+  type: ComponentBehavior
   staticPrice: number
   quantity: number
   childIds: string[]
   parentId: string | null
+  activeChildId?: string
 }
 
 export interface ComponentMap {

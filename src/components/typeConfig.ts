@@ -1,7 +1,7 @@
-import type { ComponentType } from '../types'
+import type { ComponentTag } from '../types'
 
 export const TYPE_CONFIG: Record<
-  ComponentType,
+  ComponentTag,
   { label: string; color: string; bgClass: string }
 > = {
   material: { label: 'Material', color: '#3b82f6', bgClass: 'bg-blue-500/10' },

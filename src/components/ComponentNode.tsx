@@ -10,21 +10,28 @@ import {
   Zap,
   BarChart2,
   Pencil,
+  Radio,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import type { ComponentType } from '../types'
+import type { ComponentTag } from '../types'
 import { TYPE_CONFIG } from './typeConfig'
 import { AddComponentModal } from './AddComponentModal'
 import { EditComponentModal } from './EditComponentModal'
 import { formatPrice } from '../utils/format'
 
-const TYPE_ICONS: Record<ComponentType, LucideIcon> = {
+const TAG_ICONS: Record<ComponentTag, LucideIcon> = {
   material: Package,
   labor: Users,
   assembly: Layers,
   service: Zap,
   overhead: BarChart2,
+}
+
+const BEHAVIOR_LABELS: Record<string, string> = {
+  leaf: 'Leaf',
+  group: 'Group',
+  choice: 'Choice',
 }
 
 interface Props {
@@ -36,18 +43,25 @@ export function ComponentNode({ id, depth = 0 }: Props) {
   const components = useStore(s => s.components)
   const removeComponent = useStore(s => s.removeComponent)
   const calculatePrice = useStore(s => s.calculatePrice)
+  const setActiveChoice = useStore(s => s.setActiveChoice)
 
   const [expanded, setExpanded] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [showChildMenu, setShowChildMenu] = useState(false)
 
   const comp = components[id]
   if (!comp) return null
 
   const price = calculatePrice(id)
-  const cfg = TYPE_CONFIG[comp.type]
-  const Icon = TYPE_ICONS[comp.type]
-  const hasChildren = comp.childIds.length > 0
+  const cfg = TYPE_CONFIG[comp.tag]
+  const Icon = TAG_ICONS[comp.tag]
+  const isChoice = comp.type === 'choice'
+
+  // For choice nodes, only render the active child
+  const displayedChildren = isChoice && comp.activeChildId
+    ? [comp.activeChildId]
+    : (isChoice ? [] : comp.childIds)
 
   return (
     <>
@@ -73,9 +87,9 @@ export function ComponentNode({ id, depth = 0 }: Props) {
             border border-slate-800/80 hover:border-slate-700
             transition-all duration-200 group
             ${cfg.bgClass}
-            ${hasChildren ? 'cursor-pointer' : ''}
+            ${displayedChildren.length > 0 ? 'cursor-pointer' : ''}
           `}
-          onClick={() => hasChildren && setExpanded(v => !v)}
+          onClick={() => displayedChildren.length > 0 && setExpanded(v => !v)}
         >
           {/* Left accent stripe */}
           <div
@@ -85,10 +99,10 @@ export function ComponentNode({ id, depth = 0 }: Props) {
 
           {/* Chevron */}
           <motion.div
-            animate={{ rotate: hasChildren && expanded ? 90 : 0 }}
+            animate={{ rotate: displayedChildren.length > 0 && expanded ? 90 : 0 }}
             transition={{ duration: 0.15 }}
             className="w-4 h-4 flex-shrink-0 ml-1"
-            style={{ color: hasChildren ? '#94a3b8' : 'transparent' }}
+            style={{ color: displayedChildren.length > 0 ? '#94a3b8' : 'transparent' }}
           >
             <ChevronRight size={14} />
           </motion.div>
@@ -116,7 +130,44 @@ export function ComponentNode({ id, depth = 0 }: Props) {
               >
                 {cfg.label}
               </span>
-              <span className="text-[10px] text-slate-600 capitalize">{comp.priceMode}</span>
+              <span className="text-[10px] text-slate-600 capitalize">{BEHAVIOR_LABELS[comp.type]}</span>
+
+              {/* Choice indicator */}
+              {isChoice && comp.activeChildId && (
+                <div className="relative">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setShowChildMenu(!showChildMenu)
+                    }}
+                    className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 flex items-center gap-1 transition-colors"
+                  >
+                    <Radio size={8} />
+                    {components[comp.activeChildId]?.name}
+                  </button>
+                  {showChildMenu && (
+                    <div className="absolute top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 min-w-max">
+                      {comp.childIds.map(childId => (
+                        <button
+                          key={childId}
+                          onClick={e => {
+                            e.stopPropagation()
+                            setActiveChoice(id, childId)
+                            setShowChildMenu(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm ${
+                            childId === comp.activeChildId
+                              ? 'bg-amber-500/20 text-amber-400'
+                              : 'text-slate-300 hover:bg-slate-700'
+                          } transition-colors first:rounded-t-lg last:rounded-b-lg`}
+                        >
+                          {components[childId]?.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -162,7 +213,7 @@ export function ComponentNode({ id, depth = 0 }: Props) {
 
         {/* Children */}
         <AnimatePresence>
-          {expanded && hasChildren && (
+          {expanded && displayedChildren.length > 0 && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -171,7 +222,7 @@ export function ComponentNode({ id, depth = 0 }: Props) {
               style={{ overflow: 'hidden' }}
             >
               <AnimatePresence mode="popLayout">
-                {comp.childIds.map(childId => (
+                {displayedChildren.map(childId => (
                   <ComponentNode key={childId} id={childId} depth={depth + 1} />
                 ))}
               </AnimatePresence>
