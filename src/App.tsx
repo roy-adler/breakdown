@@ -1,218 +1,203 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Calculator, ChevronDown, Save, Trash2 } from 'lucide-react'
+import { Plus, Calculator, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import { useStore } from './store/useStore'
 import { ComponentNode } from './components/ComponentNode'
 import { AddComponentModal } from './components/AddComponentModal'
-import { Modal } from './components/Modal'
 import { formatPrice } from './utils/format'
+import { TYPE_CONFIG } from './components/typeConfig'
 
 export default function App() {
-  const components = useStore(s => s.components)
-  const rootIds = useStore(s => s.rootIds)
-  const rootConfigurations = useStore(s => s.rootConfigurations)
-  const calculatePrice = useStore(s => s.calculatePrice)
-  const saveConfiguration = useStore(s => s.saveConfiguration)
-  const loadConfiguration = useStore(s => s.loadConfiguration)
-  const deleteConfiguration = useStore(s => s.deleteConfiguration)
+  const projects = useStore(s => s.projects)
+  const activeProjectId = useStore(s => s.activeProjectId)
+  const drillStack = useStore(s => s.drillStack)
+  const addProject = useStore(s => s.addProject)
+  const removeProject = useStore(s => s.removeProject)
+  const renameProject = useStore(s => s.renameProject)
+  const setActiveProject = useStore(s => s.setActiveProject)
+  const drillBack = useStore(s => s.drillBack)
+  const calculateProjectTotal = useStore(s => s.calculateProjectTotal)
 
   const [showAdd, setShowAdd] = useState(false)
-  const [showSaveConfig, setShowSaveConfig] = useState(false)
-  const [configName, setConfigName] = useState('')
-  const [showConfigMenu, setShowConfigMenu] = useState(false)
-  const [activeRootId] = useState<string>('root-1')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
-  const total = rootIds.reduce((sum, id) => sum + calculatePrice(id), 0)
-  const componentCount = Object.keys(components).length
-  const configs = rootConfigurations[activeRootId] || []
+  const activeProject = projects.find(p => p.id === activeProjectId)
+  const total = calculateProjectTotal(activeProjectId)
+  const isDrilling = drillStack.length > 0
 
-  const handleSaveConfig = () => {
-    if (configName.trim()) {
-      saveConfiguration(activeRootId, configName.trim())
-      setConfigName('')
-      setShowSaveConfig(false)
+  useEffect(() => {
+    if (renamingId) renameInputRef.current?.select()
+  }, [renamingId])
+
+  const startRename = (id: string, currentName: string) => {
+    setRenamingId(id)
+    setRenameValue(currentName)
+  }
+
+  const commitRename = () => {
+    if (renamingId && renameValue.trim()) {
+      renameProject(renamingId, renameValue.trim())
     }
+    setRenamingId(null)
   }
 
-  const handleLoadConfig = (configId: string) => {
-    loadConfiguration(activeRootId, configId)
-    setShowConfigMenu(false)
-  }
-
-  const handleDeleteConfig = (configId: string) => {
-    deleteConfiguration(activeRootId, configId)
+  const handleNewProject = () => {
+    const id = addProject('New Project')
+    startRename(id, 'New Project')
   }
 
   return (
     <div className="min-h-screen bg-[#080812] text-slate-200 flex flex-col">
-      {/* ── Header ─────────────────────────────────────────── */}
       <header className="border-b border-slate-800/80 bg-[#0a0a18]/90 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Calculator size={17} className="text-white" />
-            </div>
-            <div>
-              <h1 className="font-semibold text-slate-100 leading-none tracking-tight">
-                Breakdown Calculator
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {componentCount} component{componentCount !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
+        <div className="max-w-5xl mx-auto px-6">
 
-          <div className="flex items-center gap-5">
+          {/* Top row */}
+          <div className="py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Calculator size={15} className="text-white" />
+              </div>
+              <h1 className="font-semibold text-slate-100 tracking-tight">Breakdown</h1>
+            </div>
+
             <div className="flex items-center gap-4">
-              {/* Total Price */}
               <div className="text-right">
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Total</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total</p>
                 <motion.p
                   key={total}
                   initial={{ y: -4, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  className="font-bold text-xl text-slate-100 tabular-nums"
+                  className="font-bold text-lg text-slate-100 tabular-nums"
                 >
                   {formatPrice(total)}
                 </motion.p>
               </div>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl font-medium text-sm transition-all hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.97]"
+              >
+                <Plus size={14} />
+                Add Component
+              </button>
+            </div>
+          </div>
 
-              {/* Configuration Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowConfigMenu(!showConfigMenu)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-sm text-slate-300 transition-all"
-                >
-                  <span className="text-xs">Config</span>
-                  <ChevronDown size={14} className={`transition-transform ${showConfigMenu ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showConfigMenu && (
-                  <div className="absolute right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg min-w-max z-50">
-                    {configs.length > 0 ? (
-                      <>
-                        {configs.map(config => (
-                          <div
-                            key={config.id}
-                            className="flex items-center justify-between px-3 py-2 hover:bg-slate-700 border-b border-slate-700 last:border-b-0"
-                          >
-                            <button
-                              onClick={() => handleLoadConfig(config.id)}
-                              className="text-sm text-slate-300 hover:text-slate-100 text-left flex-1"
-                            >
-                              {config.name}
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleDeleteConfig(config.id)
-                              }}
-                              className="p-1 text-slate-500 hover:text-red-400 transition-colors ml-2"
-                              title="Delete configuration"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        ))}
-                        <div className="border-t border-slate-700 pt-1 mt-1" />
-                      </>
-                    ) : null}
-                    <button
-                      onClick={() => {
-                        setShowSaveConfig(true)
-                        setShowConfigMenu(false)
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-300 hover:text-slate-100 hover:bg-slate-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
-                    >
-                      <Save size={14} />
-                      Save Configuration
-                    </button>
-                  </div>
-                )}
+          {/* Tabs / Breadcrumb */}
+          {isDrilling ? (
+            <div className="pb-3 flex items-center gap-2">
+              <button
+                onClick={drillBack}
+                className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm"
+              >
+                <ArrowLeft size={14} />
+                Back
+              </button>
+              <div className="flex items-center gap-1.5 text-sm">
+                {[...drillStack, activeProjectId].map((pid, i) => {
+                  const p = projects.find(proj => proj.id === pid)
+                  const isLast = i === drillStack.length
+                  return (
+                    <div key={pid} className="flex items-center gap-1.5">
+                      {i > 0 && <ChevronRight size={12} className="text-slate-600" />}
+                      <span className={isLast ? 'text-slate-200 font-medium' : 'text-slate-500'}>
+                        {p?.name ?? 'Unknown'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl font-medium text-sm transition-all hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.97]"
-            >
-              <Plus size={15} />
-              Add Component
-            </button>
-          </div>
+          ) : (
+            <div className="flex items-end gap-0.5">
+              {projects.map(project => {
+                const isActive = project.id === activeProjectId
+                return (
+                  <div
+                    key={project.id}
+                    className={`group relative flex items-center gap-2 px-4 py-2.5 rounded-t-lg cursor-pointer select-none transition-all border-b-2 ${
+                      isActive
+                        ? 'bg-slate-800/60 border-blue-500 text-slate-200'
+                        : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                    }`}
+                    onClick={() => !renamingId && setActiveProject(project.id)}
+                  >
+                    {renamingId === project.id ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') commitRename()
+                          if (e.key === 'Escape') setRenamingId(null)
+                          e.stopPropagation()
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        className="bg-slate-700 text-slate-200 text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-blue-500 w-28"
+                      />
+                    ) : (
+                      <span
+                        className="text-sm font-medium"
+                        onDoubleClick={e => {
+                          e.stopPropagation()
+                          startRename(project.id, project.name)
+                        }}
+                      >
+                        {project.name}
+                      </span>
+                    )}
+                    {isActive && projects.length > 1 && renamingId !== project.id && (
+                      <button
+                        onClick={e => { e.stopPropagation(); removeProject(project.id) }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-slate-300 transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+              <button
+                onClick={handleNewProject}
+                title="New project"
+                className="flex items-center px-3 py-2.5 text-slate-600 hover:text-slate-300 transition-colors rounded-t-lg"
+              >
+                <Plus size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* ── Main ───────────────────────────────────────────── */}
-      <main className="max-w-4xl mx-auto w-full px-6 py-8 flex-1">
-        {rootIds.length === 0 ? (
+      <main className="max-w-5xl mx-auto w-full px-6 py-8 flex-1">
+        {!activeProject || activeProject.rootIds.length === 0 ? (
           <EmptyState onAdd={() => setShowAdd(true)} />
         ) : (
           <AnimatePresence mode="popLayout">
-            {rootIds.map(id => (
+            {activeProject.rootIds.map(id => (
               <ComponentNode key={id} id={id} />
             ))}
           </AnimatePresence>
         )}
       </main>
 
-      {/* ── Legend ─────────────────────────────────────────── */}
       <footer className="border-t border-slate-800/60 py-4">
-        <div className="max-w-4xl mx-auto px-6 flex flex-wrap items-center gap-4">
-          {(
-            [
-              { label: 'Material', color: '#3b82f6' },
-              { label: 'Labor', color: '#10b981' },
-              { label: 'Assembly', color: '#8b5cf6' },
-              { label: 'Service', color: '#06b6d4' },
-              { label: 'Overhead', color: '#f59e0b' },
-            ] as const
-          ).map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5">
+        <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center gap-4">
+          {(Object.entries(TYPE_CONFIG) as [string, { label: string; color: string }][]).map(([key, { label, color }]) => (
+            <div key={key} className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
               <span className="text-xs text-slate-500">{label}</span>
             </div>
           ))}
-          <span className="ml-auto text-xs text-slate-600">Hover a card for actions</span>
+          <span className="ml-auto text-xs text-slate-600">Double-click tab to rename · Double-click project ref to open</span>
         </div>
       </footer>
 
-      {/* Modals */}
       <AnimatePresence>
         {showAdd && <AddComponentModal parentId={null} onClose={() => setShowAdd(false)} />}
-        {showSaveConfig && (
-          <Modal title="Save Configuration" onClose={() => setShowSaveConfig(false)}>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Configuration Name</label>
-                <input
-                  autoFocus
-                  type="text"
-                  value={configName}
-                  onChange={e => setConfigName(e.target.value)}
-                  placeholder="e.g., Budget Option, Premium Package…"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                  onKeyDown={e => e.key === 'Enter' && handleSaveConfig()}
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSaveConfig}
-                  disabled={!configName.trim()}
-                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl font-medium text-white transition-all hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setShowSaveConfig(false)}
-                  className="flex-1 py-2.5 px-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-medium text-slate-200 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </Modal>
-        )}
       </AnimatePresence>
     </div>
   )

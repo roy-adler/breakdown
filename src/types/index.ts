@@ -1,12 +1,19 @@
 export type ComponentTag = 'material' | 'labor' | 'assembly' | 'service' | 'overhead'
 
-export type ComponentBehavior = 'leaf' | 'group' | 'choice'
+export type ComponentBehavior = 'leaf' | 'group' | 'choice' | 'projectRef'
 
 export interface Configuration {
   id: string
   name: string
-  choices: Record<string, string>  // { choiceNodeId: activeChildId }
+  choices: Record<string, string>
   createdAt: number
+}
+
+export interface Project {
+  id: string
+  name: string
+  rootIds: string[]
+  configurations: Configuration[]
 }
 
 export interface BreakdownComponent {
@@ -19,6 +26,7 @@ export interface BreakdownComponent {
   childIds: string[]
   parentId: string | null
   activeChildId?: string
+  projectRefId?: string
 }
 
 export interface ComponentMap {
